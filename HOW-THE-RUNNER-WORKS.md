@@ -4,27 +4,27 @@ A batch is a full comparison. An attempt is one task, in one language, with one 
 
 ## Before a batch starts
 
-The runner checks your settings, task text, CLI versions and available tools. New project folders must be outside Git checkouts, with no `AGENTS.md` or `CLAUDE.md` in their parent folders.
+Click **Check environment** at the bottom of the dashboard's left-hand settings panel to check your settings, task text, CLI versions and available tools. If Dark is selected, the check uses a temporary copy of Dark and deletes it afterward.
 
-For Dark, it copies the selected binary and the files it needs to start into a private folder. It starts with an empty package store and a separate .NET cache. It does not copy your existing packages, logs or permissions. The binary must be able to set up a fresh store from its own package data.
+**Review & run**, next to it, runs the same checks and shows the exact prompts, executable paths, launch options, environment changes, time limits and project locations. If the prompts change after review, the runner asks you to review them again.
 
-Environment previews use temporary copies and delete them afterward. This setup happens before attempt timing starts.
+Clicking **Start batch** sends a small request to each selected agent to check its login. These requests use agent quota. Checking the environment and reviewing the settings do not send agent requests.
 
-The review screen shows the exact prompts, executable paths, launch options, environment changes, time limits and project locations. Each Dark path points to that attempt's own copy. If the prompts change after review, the runner asks you to review them again.
+## Each attempt gets its own environment
 
-The runner uses your existing CLI login and settings. Your instructions, memory, hooks and plugins can still affect the agent. The runner cannot list everything the CLI may load.
+The runner gives each attempt a separate working folder in your system's temporary directory and a new agent conversation. It checks that no existing project or project instruction files will interfere with the attempt.
+
+For Dark, each attempt gets a **fresh Dark environment** using the executable you provide. The runner copies that executable and its startup files into a private folder, with an empty package store and a separate folder for extracted .NET files. Your existing Dark packages, logs and permissions are not copied, and attempts do not share package changes. The executable must be able to initialize the empty store from its own package data.
+
+Python and TypeScript use the tools already available on your machine. All agents use your existing CLI login and settings, so your instructions, memory, hooks and plugins can still affect results. The runner cannot list everything the CLI may load.
 
 ## During an attempt
 
-The runner creates a new project folder and CLI conversation. For Dark, it also copies the batch's unchanged binary into the attempt's own runtime folder and sets up a fresh store and cache. It records the paths, environment and setup time. Setup time does not count toward the attempt's duration.
-
 Attempts run one at a time in shuffled order. The runner saves that order so you can check it later.
 
-Timing starts just before the prompt is sent. The agent chooses how to build and test the program. The prompt names the language, gives the Dark path, version and optional documentation, and asks the agent to explain blockers without installing dependencies. Python and TypeScript tasks use the tools already available on the machine.
+The agent receives the task and language guidance shown in the review. For Dark, this includes its executable path, version and any documentation you supplied. The agent chooses how to build and test the program, and is asked to explain anything that stopped it from finishing without installing dependencies.
 
-The default tasks ask the agent to test its work and explain the result. The runner does not run its own acceptance tests, require a `run.json` file, enforce an output format or send repair prompts.
-
-Messages, commands and errors appear in the activity feed. Full CLI logs are also saved. Known secrets and common credential formats are redacted, but the logs can still contain private information.
+The runner does not grade the program, require a particular output format or send follow-up prompts to repair the work. Messages, commands and errors appear in **Agent activity**.
 
 An attempt can end with these statuses:
 
@@ -33,34 +33,34 @@ An attempt can end with these statuses:
 - **Limit reached:** the time ran out.
 - **Cancelled:** you stopped the attempt.
 
+For now, attempts run without human input: you cannot answer the agent's questions or approve requests during a run. Notes are only for your records. We want to add interactive sessions so the benchmark can also reflect how people answer questions, grant permissions and guide agents in everyday use.
+
+**Cancel** stops the agent and its ordinary child processes; a process that deliberately separates itself may keep running.
+
 ## Time, tokens and cost
 
-The default limit is 45 minutes per attempt. That includes the agent's own tests and repairs. Environment checks and project setup happen before timing starts.
+Timing starts just before the task prompt is sent and includes the agent's own tests and repairs. The default limit is 45 minutes. Environment checks, login checks and project setup are excluded. The runner uses an already-built Dark executable, so it does not measure downloading, building or installing Dark.
 
 Tokens and cost come from the CLI. Missing values stay blank. Input totals include cached input, and reasoning tokens are not counted twice. User prompts and model calls are recorded separately; Codex model-call counts stay blank when they are unavailable.
 
-The runner groups results by task, agent, model, language, outcome and checking method, then uses medians for comparisons. Dark's time and cost are compared with matching completed sessions. Older results with automatic checks stay separate from newer sessions without those checks. Failed and blocked attempts keep their measured time and usage too.
+Comparisons use medians for matching tasks, agents, models, languages, outcomes and checking methods. Dark's time and cost are compared with matching completed sessions. Older results with automatic checks stay separate from newer sessions without those checks. Failed and blocked attempts keep their measured time and usage too.
 
-## Cancelling and saving
+## What gets saved
 
-Cancel stops the active command's process group and its ordinary child processes. A process that deliberately detaches may keep running. Notes you add are saved but never sent to the agent. You cannot reply to approval or clarification prompts during an attempt.
+The output folder contains settings, tool versions, prompts, full CLI logs and run records, plus JSON and CSV results. The runner removes known secrets and common credential formats from logs, but saved files can still contain private information. Review them before sharing.
 
-The output folder contains settings, tool versions, prompts, logs and run records, plus JSON and CSV results. Generated projects stay in their own folders. Each attempt's `final-project.json` records where its project lives.
-
-After a batch finishes, the runner records file hashes in `frozen.json`. Reports check these hashes to make sure the saved evidence has not changed.
+Generated projects stay in their own folders. Each attempt's `final-project.json` records where its project lives. After a batch finishes, the runner saves file fingerprints (hashes) in `frozen.json` so it can detect changes before creating a report.
 
 Finished batches and reports reload after a restart. Active attempts and waiting batches do not resume.
 
-**Delete batch** asks for confirmation, then removes the batch's results, logs, reports, generated projects and private Dark runtimes. It keeps the configuration in the sidebar. Stop active work and wait for reports to finish before deleting a batch.
+**Delete batch** asks for confirmation, then removes the batch's results, logs, reports, generated projects and private Dark environments. It keeps the configuration in the sidebar. Stop active work and wait for reports to finish before deleting a batch.
 
 ## The Dark report
 
 Once a batch is finished and the runner is idle, **Create Dark report** starts a separate agent conversation. You can review its instructions in the dashboard first.
 
-The runner checks the saved file hashes and gives the agent the results, Dark transcripts and CLI errors. Older batches may also include automatic check results.
+The agent receives the saved results, Dark transcripts and CLI errors. Older batches may also include automatic check results. The report describes problems supported by those logs: repeated failed commands, confusing errors, missing functions or packages, and places where time may have been lost. It says whether each problem was resolved and distinguishes a missing feature from something the agent failed to find.
 
-The report is a short list of problems supported by those logs: repeated failed commands, confusing errors, missing functions or packages, and places where time may have been lost. It says whether each problem was resolved. It distinguishes a missing feature from something the agent failed to find, and uses only recorded timings and retry counts.
-
-The report session has a 15-minute limit. Its report, logs, tokens, cost and time are saved separately and do not count toward the benchmark. Its findings are never sent back into attempts.
+The report session has a 15-minute limit. Its report, logs, tokens, cost and time are saved separately from benchmark measurements. Its findings are never sent back into attempts.
 
 Click **View report** to read it. Use **Close** or Esc to dismiss it.
