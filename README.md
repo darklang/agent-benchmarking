@@ -70,7 +70,6 @@ The runner removes known credentials from saved logs, but prompts, transcripts, 
 
 - [Usage guide](USAGE.md): configure comparisons, inspect code, run programs, create reports and delete batches.
 - [How the runner works](HOW-THE-RUNNER-WORKS.md): prompts, isolation, timing, outcomes and saved evidence.
-- [Public release checklist](RELEASING.md): organization details, licensing and publication checks.
 
 ## Development
 
