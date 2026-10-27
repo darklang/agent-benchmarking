@@ -1,4 +1,4 @@
-import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
+import { lstat, readdir, readFile, realpath, cp, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { redact } from './storage.js';
 
@@ -35,3 +35,23 @@ export async function projectFiles(workspace) {
   await visit(root);
   return { files, skipped, workspace: root };
 }
+
+// Preserve regular files without following links into unrelated folders.
+export async function preserveProject(workspace, destination) {
+  const staging = `${destination}.tmp`;
+  const omitted = [];
+  try {
+    await cp(workspace, staging, { recursive: true, dereference: false, filter: async source => {
+      const info = await lstat(source);
+      if (info.isDirectory() || info.isFile()) return true;
+      omitted.push(path.relative(workspace, source));
+      return false;
+    } });
+    await rename(staging, destination);
+    return { path: destination, omitted };
+  } finally {
+    await rm(staging, { recursive: true, force: true });
+  }
+}
+
+export const projectPath = run => run.savedProject || run.workspace;

@@ -7,6 +7,7 @@ import { defaults, preflight, validate, selectedTasks } from './config.js';
 import { modelUsed } from './model-choices.js';
 import { blankUsage, runAgent, checkLogin, eventsFrom, errorText } from './adapters.js';
 import { createActivityFormatter, savedActivity } from './activity.js';
+import { preserveProject } from './project-files.js';
 import { instructionsFor, previewInstructions, analysisPrompt } from './instructions.js';
 import { save, redact, combineUsage, exportsFor } from './storage.js';
 
@@ -186,7 +187,7 @@ export class Runner {
     this.controller.abort(); if (this.batch) this.batch.progress = 'Stopping processes and saving results';
   }
   note(text) {
-    if (!this.controller || !text?.trim()) throw Error('A response needs an active session and some text.');
+    if (!this.controller || !text?.trim()) throw Error('To add a note, enter some text while an attempt is running.');
     const run = this.batch.runs.find(r => r.status === 'running');
     if (!run) throw Error('There is no benchmark attempt running.');
     // Save the note without sending it to the agent.
@@ -271,9 +272,17 @@ export class Runner {
       if (run.status !== 'completed') appendActivity([{ kind: 'error', title: `Attempt ${run.status}`, text: run.error || (run.status === 'limit reached' ? 'The time limit was reached.' : 'The attempt was cancelled.'), details: '' }]);
     } catch (error) { run.status = signal.aborted ? 'cancelled' : 'environment blocked'; run.error = redact(error.message); }
     run.finishedAt = new Date().toISOString(); run.durationMs = Math.round(performance.now() - started);
+    // Archive after timing stops, including partial work from failed or cancelled attempts.
+    try {
+      const project = await preserveProject(workspace, path.join(folder, 'project'));
+      run.savedProject = project.path;
+      await save(path.join(folder, 'final-project.json'), { ...project, originalWorkspace: workspace,
+        note: 'Permanent project copy. Symbolic links and special files are omitted.' });
+    } catch (error) {
+      run.projectSaveError = redact(`Could not preserve the project: ${error.message}`);
+      await save(path.join(folder, 'final-project.json'), { path: workspace, error: run.projectSaveError });
+    }
     await save(path.join(folder, 'run.json'), run);
-    // Keep the original project folder instead of copying files that may contain symlinks.
-    await save(path.join(folder, 'final-project.json'), { path: workspace, note: 'Final project remains in its original isolated workspace.' });
   }
   async analyze(agent, key) {
     const batch = this.find(key);

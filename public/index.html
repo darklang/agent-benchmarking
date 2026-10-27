@@ -15,7 +15,7 @@
     <label class="name-field">Name this configuration<input data-bind="name" placeholder="Enter a name"></label>
 
     <details class="section" data-section="agents" open>
-      <summary><span class="section-title">Agents</span><span class="section-meta" data-meta="agents"></span></summary>
+      <summary><span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3M7 9h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z"/><circle cx="9.5" cy="14" r="1"/><circle cx="14.5" cy="14" r="1"/></svg></span><span class="section-title">Agents</span><span class="section-meta" data-meta="agents"></span></summary>
       <div class="section-body">
         <div class="toggle-card" data-agent="codex">
           <label class="toggle"><input type="checkbox" data-bind="agents.codex.enabled"><span>Codex</span></label>
@@ -38,7 +38,7 @@
     </details>
 
     <details class="section" data-section="languages" open>
-      <summary><span class="section-title">Languages</span><span class="section-meta" data-meta="languages"></span></summary>
+      <summary><span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg></span><span class="section-title">Languages</span><span class="section-meta" data-meta="languages"></span></summary>
       <div class="section-body">
         <div class="toggle-card" data-language="Dark">
           <label class="toggle"><input type="checkbox" data-bind="languages.Dark"><span>Dark</span></label>
@@ -58,7 +58,7 @@
     </details>
 
     <details class="section" data-section="task">
-      <summary><span class="section-title">Tasks</span><span class="section-meta" data-meta="task"></span></summary>
+      <summary><span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg></span><span class="section-title">Tasks</span><span class="section-meta" data-meta="task"></span></summary>
       <div class="section-body">
         <div class="row spread"><p id="taskCount" class="hint"></p><button id="addTask" class="ghost small" type="button">+ Add task</button></div>
         <div id="taskList"></div>
@@ -66,7 +66,7 @@
     </details>
 
     <details class="section" data-section="limits">
-      <summary><span class="section-title">Limits</span><span class="section-meta" data-meta="limits"></span></summary>
+      <summary><span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/></svg></span><span class="section-title">Limits</span><span class="section-meta" data-meta="limits"></span></summary>
       <div class="section-body">
         <div class="limit-fields">
           <label>Runs per task<input data-bind="repetitions" type="number" min="1" max="100"></label>
@@ -77,7 +77,7 @@
     </details>
 
     <details class="section" data-section="environment">
-      <summary><span class="section-title">Output &amp; environment</span><span class="section-meta" data-meta="environment"></span></summary>
+      <summary><span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg></span><span class="section-title">Output &amp; environment</span><span class="section-meta" data-meta="environment"></span></summary>
       <div class="section-body">
         <label>Output folder<input data-bind="outputFolder" class="mono"></label>
       </div>
@@ -115,7 +115,7 @@
       <div class="batch-title">
         <div><h2 id="batchName"></h2><p id="batchSub" class="muted"></p></div>
         <div class="row">
-          <button id="copyConfig" class="ghost small" title="Copy this batch's configuration into a new sidebar configuration">Edit as new config</button>
+          <button id="copyConfig" class="ghost small" title="Copy this run's settings into a new configuration you can edit and run again">Copy settings</button>
           <button id="deleteBatch" class="danger small" hidden>Delete batch</button>
           <button id="cancel" class="danger small" hidden>Cancel</button>
         </div>
@@ -150,8 +150,8 @@
       <section class="card">
         <div class="card-head"><h3>Agent activity</h3><span class="muted small-text">Live during a run; recent activity reloads from saved logs afterward</span></div>
         <div id="events" class="activity-feed" aria-live="polite"></div>
-        <label>Record a human response or manual intervention<textarea id="note" rows="2"></textarea></label>
-        <div class="row spread"><p class="hint">Recorded, <strong>not</strong> sent to the agent.</p><button id="record" class="secondary small">Record note</button></div>
+        <label>Add a note<textarea id="note" rows="2"></textarea></label>
+        <div class="row spread"><p class="hint">For your records only. Notes are not sent to the agent.</p><button id="record" class="secondary small">Save note</button></div>
       </section>
       <section class="card report-card">
         <div class="card-head"><h3>Dark report</h3></div>
@@ -204,8 +204,10 @@
     <details><summary>Files omitted from preview</summary><ul id="codeSkipped"></ul></details>
     <h3>Run the program</h3>
     <p class="hint">Runs in a sandbox on this machine, in a fresh copy of the project, so the saved project is never changed. The program cannot read your home folder, can write only to its copy and gets none of your environment variables; network is on. Dark uses this attempt’s own binary and package store as <code>$DARK</code>. Limit 60 seconds. Results are saved with the batch but are not part of the frozen benchmark results.</p>
-    <label>Command<input id="tryCommand" class="mono" spellcheck="false" autocomplete="off"></label>
-    <label>Standard input (optional)<textarea id="tryInput" class="mono" rows="2" spellcheck="false"></textarea></label>
+    <label>Command and arguments<input id="tryCommand" class="mono" spellcheck="false" autocomplete="off" aria-describedby="tryCommandHelp"></label>
+    <p id="tryCommandHelp" class="hint">If the program expects a value in its command, add it here. For example: <code>"$DARK" run fizzbuzz.dark 2</code>. The input box below does not add arguments to the command.</p>
+    <label>Answers to program prompts (optional)<textarea id="tryInput" class="mono" rows="2" spellcheck="false" aria-describedby="tryInputHelp"></textarea></label>
+    <p id="tryInputHelp" class="hint">If the program asks questions, enter one answer per line. Otherwise, leave blank. All answers are sent when you click Run; you cannot reply while it runs.</p>
     <div class="try-actions"><button type="button" id="tryRun" class="secondary">Run</button><span id="tryStatus" class="muted"></span></div>
     <div id="tryResults"></div>
   </form>

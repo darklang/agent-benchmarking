@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { command } from './process.js';
+import { projectPath } from './project-files.js';
 import { dotnetLocks } from './dark-runtime.js';
 import { redact, save } from './storage.js';
 
@@ -28,12 +29,15 @@ export async function savedTries(batch, run) {
 
 // Run a temporary copy inside the sandbox so the original project stays unchanged.
 export async function tryProgram(batch, run, { commandLine, input = '', timeoutMs = 60000 } = {}) {
-  if (!run.workspace) throw Error('This attempt has no project folder.');
+  if (!projectPath(run)) throw Error('This attempt has no project folder.');
   if (typeof commandLine !== 'string' || !commandLine.trim()) throw Error('Enter a command to run.');
   if (commandLine.length > 4000 || String(input).length > 100_000) throw Error('The command or input is too long.');
+  // Submit the final answer as if Enter was pressed; empty input still means immediate EOF.
+  const text = String(input);
+  const stdin = text && !text.endsWith('\n') ? `${text}\n` : text;
   if (process.platform !== 'darwin') throw Error('Sandboxed program runs are only available on macOS for now.');
   let source;
-  try { source = await realpath(run.workspace); } catch { throw Error('The project folder is no longer available on disk.'); }
+  try { source = await realpath(projectPath(run)); } catch { throw Error('The project folder is no longer available on disk.'); }
   // The sandbox matches real paths, and macOS's temporary folder is a link into /private.
   const scratch = await realpath(await mkdtemp(path.join(os.tmpdir(), 'benchmark-try-')));
   const cwd = path.join(scratch, 'project'), home = path.join(scratch, 'home'), tmp = path.join(scratch, 'tmp');
@@ -49,8 +53,8 @@ export async function tryProgram(batch, run, { commandLine, input = '', timeoutM
     }
     const profile = sandboxProfile({ home: await realpath(os.homedir()), writable });
     const started = performance.now();
-    const result = await command('/usr/bin/sandbox-exec', ['-p', profile, '/bin/sh', '-c', commandLine], { cwd, input: String(input), timeoutMs, env, inheritEnv: false });
-    const entry = { at: new Date().toISOString(), command: commandLine, input: String(input), exitCode: result.code,
+    const result = await command('/usr/bin/sandbox-exec', ['-p', profile, '/bin/sh', '-c', commandLine], { cwd, input: stdin, timeoutMs, env, inheritEnv: false });
+    const entry = { at: new Date().toISOString(), command: commandLine, input: stdin, exitCode: result.code,
       timedOut: result.timedOut, error: result.error, durationMs: Math.round(performance.now() - started),
       stdout: redact(clip(result.stdout)), stderr: redact(clip(result.stderr)) };
     const tries = await savedTries(batch, run);

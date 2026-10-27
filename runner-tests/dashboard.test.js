@@ -112,3 +112,39 @@ test('model selectors preserve exact custom names and pass explicit selections t
   assert.equal(result.selectedModel, 'listed-model');
   assert.ok(result.issues.some(issue => issue.text.includes('custom model name')));
 });
+
+test('run navigation shows newest first, fits the available width and keeps older selections visible', async () => {
+  const source = (await readFile(new URL('../public/app.js', import.meta.url), 'utf8')).replace(/init\(\)\.catch\([^\n]+\);\s*$/, '');
+  const batches = Array.from({ length: 10 }, (_, i) => ({ key: String(i), finishedAt: new Date(2026, 0, i + 1).toISOString() }));
+  const context = vm.createContext({ batches });
+  vm.runInContext(source, context);
+  const nav = (width, selected = '9') => JSON.parse(vm.runInContext(`JSON.stringify(batchNavigation(batches, ${width}, '${selected}'))`, context));
+  assert.deepEqual(nav(800).visible.map(b => b.key), ['9', '8', '7']);
+  assert.equal(nav(800).older.length, 7);
+  assert.deepEqual(nav(800, '0').visible.map(b => b.key), ['9', '8', '0']);
+  assert.deepEqual(nav(240, '0').visible.map(b => b.key), ['0']);
+  assert.equal(nav(240).older.length, 9);
+  assert.equal(nav(2200).older.length, 0);
+  assert.deepEqual(batches.map(b => b.key), Array.from({ length: 10 }, (_, i) => String(i)));
+});
+
+test('finish times use minutes, hours and days; Latest follows completion time rather than start time', async () => {
+  const source = (await readFile(new URL('../public/app.js', import.meta.url), 'utf8')).replace(/init\(\)\.catch\([^\n]+\);\s*$/, '');
+  const now = Date.parse('2026-10-27T12:00:00Z');
+  const batches = [
+    { key: 'older', finishedAt: '2026-10-25T12:00:00Z' },
+    { key: 'latest', finishedAt: '2026-10-26T12:00:00Z' },
+    { key: 'running', startedAt: '2026-10-27T12:00:00Z' }
+  ];
+  const context = vm.createContext({ batches, now });
+  vm.runInContext(source, context);
+  const label = milliseconds => vm.runInContext(`finishLabel(new Date(now - ${milliseconds}).toISOString(), now)`, context);
+  assert.equal(label(10000), 'Just finished');
+  assert.equal(label(60000), 'Finished 1 minute ago');
+  assert.equal(label(600000), 'Finished 10 minutes ago');
+  assert.equal(label(10800000), 'Finished 3 hours ago');
+  assert.equal(label(172800000), 'Finished 2 days ago');
+  assert.equal(vm.runInContext("finishLabel(null, now)", context), '');
+  assert.equal(vm.runInContext('latestFinishedKey(batches)', context), 'latest');
+  assert.equal(vm.runInContext('latestFinishedKey([])', context), undefined);
+});

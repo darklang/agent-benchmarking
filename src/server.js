@@ -7,7 +7,7 @@ import { previewInstructions, analysisPrompt } from './instructions.js';
 import { launchArgs } from './adapters.js';
 import { darkRuntimePaths } from './dark-runtime.js';
 import { modelChoices } from './model-choices.js';
-import { projectFiles } from './project-files.js';
+import { projectFiles, projectPath } from './project-files.js';
 import { tryProgram, savedTries, suggestedCommand } from './try-program.js';
 import { Runner } from './runner.js';
 import { defaults, preflight, selectedTasks } from './config.js';
@@ -59,7 +59,7 @@ const server = http.createServer(async (req, res) => {
         const batch = runner.find(value.batch), run = batch?.runs.find(r => r.id === value.run);
         if (!run) throw Error('Attempt not found.');
         if (['queued', 'running'].includes(run.status)) throw Error('Code is available when the attempt finishes.');
-        const project = await projectFiles(run.workspace);
+        const project = await projectFiles(projectPath(run));
         return json({ ...project, tries: await savedTries(batch, run), suggestedCommand: suggestedCommand(run.language, project.files.map(f => f.name)) });
       }
       if (req.url === '/api/try') {

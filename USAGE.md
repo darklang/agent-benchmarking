@@ -47,11 +47,13 @@ Configurations are saved in your browser. Results, prompts and logs go in your c
 
 Click an attempt, then **Check code**, to browse its files. The viewer only reads the files.
 
-On macOS, **Run the program** lets you try a command in a fresh copy of the project. The suggested command is a guess; you can edit it. You can see its output, errors and exit code. Dark commands use the attempt's own binary and package store through `$DARK`, including any permissions the agent granted there.
+On macOS, **Run the program** lets you try a command in a fresh copy of the project. The suggested command is a guess; you can edit it. Dark commands use the attempt's own binary and package store through `$DARK`, including any permissions the agent granted there.
+
+Add command arguments directly to **Command and arguments**, for example `"$DARK" run fizzbuzz.dark 2`. If the program asks questions, use **Answers to program prompts**, with one answer per line. Answers are sent all at once when you click **Run**; you cannot reply while it runs. Programs that need a live terminal may not work here. Output, errors and the exit code appear afterward.
 
 Manual runs use the macOS sandbox. It blocks access to your home folder and limits file writes to the temporary copy and the attempt's runtime folders. It allows network access and reads elsewhere on the machine. The command gets a small environment for finding tools and using temporary folders, rather than your full environment.
 
-A manual run lasts at most 60 seconds and must wait until benchmarks and reports finish. Its results go in `manual-runs/`, separate from the benchmark results. Close the popup with **Close** or Esc. The original generated project stays in place; `final-project.json` records its location.
+A manual run lasts at most 60 seconds and must wait until benchmarks and reports finish. Its results go in `manual-runs/`, separate from the benchmark results. Close the popup with **Close** or Esc. New attempts save a project copy with their results. Older attempts still rely on temporary folders. Review saved files for private information before sharing.
 
 ### Reports and cleanup
 

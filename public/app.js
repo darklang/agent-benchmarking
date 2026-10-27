@@ -247,15 +247,15 @@ function refreshSidebar() {
   for (const card of document.querySelectorAll('[data-agent]')) card.classList.toggle('on', d.agents[card.dataset.agent].enabled);
   for (const card of document.querySelectorAll('[data-language]')) card.classList.toggle('on', d.languages[card.dataset.language]);
   const meta = {
-    agents: s.agents.map(a => AGENT_LABEL[a] + (d.agents[a].model.trim() ? ` (${d.agents[a].model.trim()})` : '')).join(', ') || 'None',
-    languages: s.languages.join(', ') || 'None',
+    agents: s.agents.length ? s.agents.map(a => h('span', { class: `meta-chip agent-${a}` }, AGENT_LABEL[a] + (d.agents[a].model.trim() ? ` (${d.agents[a].model.trim()})` : ''))) : 'None',
+    languages: s.languages.length ? s.languages.map(l => h('span', { class: `meta-chip language-${l}` }, l)) : 'None',
     task: `${s.tasks.length} of ${d.tasks.length} included`,
     limits: `${d.repetitions} runs · ${d.minutes} min/run`,
     environment: String(d.outputFolder).split('/').filter(Boolean).pop() || '—' };
   for (const section of document.querySelectorAll('.section')) {
     const name = section.dataset.section, problem = problems.find(p => p.section === name);
     section.classList.toggle('has-issue', !!problem);
-    section.querySelector('[data-meta]').textContent = problem ? problem.text : meta[name];
+    section.querySelector('[data-meta]').replaceChildren(...[problem ? problem.text : meta[name]].flat());
   }
   const worst = s.attempts * (Number(d.minutes) || 0) * 60000;
   $('estimate').replaceChildren(h('strong', {}, plural(s.attempts, 'attempt')),
@@ -333,17 +333,68 @@ async function runPreflight() {
 }
 
 // ---------- batches ----------
+function finishLabel(finishedAt, now = Date.now()) {
+  const timestamp = Date.parse(finishedAt);
+  if (!Number.isFinite(timestamp)) return '';
+  const minutes = Math.floor(Math.max(0, now - timestamp) / 60000);
+  if (minutes < 1) return 'Just finished';
+  if (minutes < 60) return `Finished ${plural(minutes, 'minute')} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Finished ${plural(hours, 'hour')} ago`;
+  return `Finished ${plural(Math.floor(hours / 24), 'day')} ago`;
+}
+function latestFinishedKey(batches) {
+  return [...batches].filter(b => Number.isFinite(Date.parse(b.finishedAt)))
+    .sort((a, b) => Date.parse(b.finishedAt) - Date.parse(a.finishedAt))[0]?.key;
+}
+function batchNavigation(batches, width, selectedKey) {
+  const ordered = [...batches].sort((a, b) =>
+    (Date.parse(b.finishedAt || b.startedAt || b.queuedAt) || 0) - (Date.parse(a.finishedAt || a.startedAt || a.queuedAt) || 0));
+  const allFit = ordered.length * 198 - 8 <= width;
+  const count = allFit ? ordered.length : Math.max(1, Math.floor((width - 108) / 198));
+  const visible = ordered.slice(0, count);
+  const selectedBatch = ordered.find(b => b.key === selectedKey);
+  if (selectedBatch && !visible.includes(selectedBatch)) visible[visible.length - 1] = selectedBatch;
+  return { visible, older: ordered.filter(b => !visible.includes(b)) };
+}
+function setBatchMenu(open) {
+  const wrap = $('batchList').querySelector('.batch-more-wrap');
+  if (!wrap) return;
+  wrap.querySelector('.batch-menu').hidden = !open;
+  wrap.querySelector('.batch-more').setAttribute('aria-expanded', String(open));
+}
 function renderBatchList() {
+  const list = $('batchList');
   const waiting = latest.batches.filter(b => b.status === 'waiting');
-  $('batchList').replaceChildren(...latest.batches.map(b => {
+  const newestFinished = latestFinishedKey(latest.batches);
+  const { visible, older } = batchNavigation(latest.batches, list.clientWidth - 4, selected);
+  const selectBatch = key => { selected = key; openRun = null; paint(); };
+  const tabs = visible.map(b => {
     const done = b.runs.filter(finished).length;
-    const detail = b.status === 'waiting' ? `#${waiting.indexOf(b) + 1} in queue` : b.runs.length ? `${done}/${b.runs.length} attempts` : time(b.queuedAt);
-    return h('button', { class: `batch-tab tone-${TONE[b.status] || 'idle'}${b.key === selected ? ' selected' : ''}`, type: 'button', onclick: () => { selected = b.key; openRun = null; paint(); } },
-      h('strong', { title: b.name }, b.name), h('div', { class: 'row' }, pill(b.status), h('small', {}, detail)),
-      h('div', { class: 'mini-progress' }, h('div')));
-  }));
-  // The page's security policy blocks inline styles, so set widths through the stylesheet API.
-  [...$('batchList').children].forEach((tab, i) => { const b = latest.batches[i]; tab.querySelector('.mini-progress div').style.width = `${b.runs.length ? 100 * b.runs.filter(finished).length / b.runs.length : 0}%`; });
+    const detail = b.status === 'waiting' ? `#${waiting.indexOf(b) + 1} in queue` : b.runs.length ? [h('b', {}, done), `/${b.runs.length} attempts`] : time(b.queuedAt);
+    const tab = h('button', { class: `batch-tab tone-${TONE[b.status] || 'idle'}${b.key === selected ? ' selected' : ''}`, type: 'button', 'aria-current': b.key === selected ? 'true' : null, onclick: () => selectBatch(b.key) },
+      h('div', { class: 'batch-tab-heading' }, h('strong', { title: b.name }, b.name), b.key === newestFinished && h('span', { class: 'batch-latest' }, 'Latest')),
+      h('div', { class: 'batch-tab-line' }, h('span', { class: 'batch-attempts' }, h('span', { class: 'batch-ring' }), h('small', {}, detail)), pill(b.status)),
+      h('small', { class: 'batch-finished', title: b.finishedAt ? new Date(b.finishedAt).toLocaleString() : null }, finishLabel(b.finishedAt)));
+    // Set progress through the stylesheet API to respect the page's security policy.
+    tab.style.setProperty('--progress', `${b.runs.length ? 100 * done / b.runs.length : 0}%`);
+    return tab;
+  });
+  const menu = h('div', { class: 'batch-menu', role: 'menu', hidden: true },
+    ...older.map(b => h('button', { class: `batch-menu-item tone-${TONE[b.status] || 'idle'}`, type: 'button', role: 'menuitem', onclick: () => selectBatch(b.key) },
+      h('span', { class: 'batch-menu-dot' }),
+      h('span', { class: 'batch-menu-name' }, b.name, b.key === newestFinished && h('span', { class: 'batch-latest' }, 'Latest')),
+      h('small', {}, finishLabel(b.finishedAt) || new Date(b.startedAt || b.queuedAt).toLocaleString()),
+      h('small', { class: 'batch-menu-status' }, STATUS_LABEL[b.status] || b.status[0].toUpperCase() + b.status.slice(1)))));
+  const more = older.length ? h('div', { class: 'batch-more-wrap' },
+    h('button', { class: 'batch-more', type: 'button', 'aria-label': 'More runs', 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: () => setBatchMenu(menu.hidden) },
+      h('b', {}, older.length), h('span', {}, 'More ▾')),
+    menu) : null;
+  const navigationState = JSON.stringify([selected, newestFinished, visible.map(b => [b.key, b.name, b.status, b.runs.filter(finished).length, b.runs.length, b.queuedAt, b.finishedAt, finishLabel(b.finishedAt)]), older.map(b => [b.key, b.name, b.status, b.finishedAt, b.startedAt, b.queuedAt, finishLabel(b.finishedAt)])]);
+  if (list.dataset.navigationState !== navigationState) {
+    list.replaceChildren(...tabs, ...(more ? [more] : []));
+    list.dataset.navigationState = navigationState;
+  }
   const active = latest.batches.find(b => b.key === latest.active);
   const engine = $('engine');
   engine.className = `pill ${active ? 'run' : ''}`;
@@ -447,16 +498,16 @@ function showRun(b, id, refreshOnly = false) {
   const snapshot = JSON.stringify(run);
   if (refreshOnly && (!$('runDialog').open || rendered.run === snapshot)) return;
   openRun = id; rendered.run = snapshot;
-  const facts = (rows) => h('dl', { class: 'facts' }, ...rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', { class: /^(Workspace|Artifacts|Run ID)$/.test(k) ? 'mono' : '' }, v ?? '—')]));
+  const facts = (rows) => h('dl', { class: 'facts' }, ...rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', { class: /^(Workspace|Saved project|Artifacts|Run ID)$/.test(k) ? 'mono' : '' }, v ?? '—')]));
   const u = run.usage;
   $('runTitle').textContent = `${run.task || 'Task'} · ${AGENT_LABEL[run.agent]} / ${modelLabel(run.agent, run.model, [run])} · ${run.language} #${run.repetition}`;
-  const body = [h('p', {}, pill(run.status)), run.error && h('p', { class: 'error-text' }, run.error),
+  const body = [h('div', { class: 'run-summary' }, pill(run.status)), run.error && h('p', { class: 'error-text' }, run.error),
     facts([['Task', run.task], ['Model used', run.modelUsed || (finished(run) ? 'Not reported by the CLI' : null)], ['Run ID', run.id], ['Started', run.startedAt && new Date(run.startedAt).toLocaleString()], ['Duration', duration(run.durationMs)], ['User prompts', run.userPrompts],
-      ['Verification', run.verification === 'agent-self-test' ? 'Agent asked to test; no independent checks' : 'Legacy run with acceptance checks'], ['Workspace', run.workspace], ['Artifacts', run.artifactFolder]]),
+      ['Verification', run.verification === 'agent-self-test' ? 'Agent asked to test; no independent checks' : 'Legacy run with acceptance checks'], ['Workspace', run.workspace], ...(run.savedProject ? [['Saved project', run.savedProject]] : []), ['Artifacts', run.artifactFolder]]),
     h('h3', {}, 'Usage'),
     facts([['Input', display(u.inputTokens)], ['Cached input', display(u.cachedInputTokens)], ['Cache creation', display(u.cacheCreationTokens)], ['Output', display(u.outputTokens)],
       ['Reasoning', display(u.reasoningTokens)], ['Model calls', display(u.modelCalls)], ['Cost $', display(u.costUsd)]])];
-  if (run.workspace && finished(run)) body.unshift(h('button', { type: 'button', class: 'secondary', onclick: guard(async () => {
+  if (run.workspace && finished(run)) body[0].append(h('button', { type: 'button', class: 'secondary small', onclick: guard(async () => {
     const project = await request('/api/code', { batch: b.key, run: run.id });
     $('codeTitle').textContent = `Final code · ${run.task} · ${run.language} #${run.repetition}`;
     $('codePath').textContent = project.workspace;
@@ -484,6 +535,7 @@ function showRun(b, id, refreshOnly = false) {
     $('tryCommand').onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); runIt(); } };
     $('codeDialog').showModal();
   }) }, 'Check code'));
+  if (run.projectSaveError) body.push(h('p', { class: 'error-text' }, run.projectSaveError));
   if (run.instructions) body.push(h('h3', {}, 'Exact instructions sent'), h('pre', {}, run.instructions));
   if (run.interventions.length) body.push(h('h3', {}, 'Human notes (not sent to the agent)'), h('ul', { class: 'check-list' }, ...run.interventions.map(n => h('li', {}, h('span', { class: 'muted' }, time(n.at)), n.text))));
   body.push(h('details', {}, h('summary', {}, 'Raw attempt record (JSON)'), h('pre', {}, JSON.stringify(run, null, 2))));
@@ -505,7 +557,7 @@ function showTries(tries) {
 }
 function paint() {
   const batches = latest.batches;
-  if (!batches.some(b => b.key === selected)) selected = latest.active ?? batches.at(-1)?.key ?? null;
+  if (!batches.some(b => b.key === selected)) selected = latest.active ?? batchNavigation(batches, Infinity, null).visible[0]?.key ?? null;
   renderBatchList();
   const b = batches.find(x => x.key === selected);
   $('empty').hidden = !!b; $('batchView').hidden = !b;
@@ -551,6 +603,12 @@ async function init() {
     section.addEventListener('toggle', () => { store.open[section.dataset.section] = section.open; persist(); });
   }
   fillEditor();
+  let batchListWidth = 0;
+  new ResizeObserver(([entry]) => {
+    if (entry.contentRect.width !== batchListWidth) { batchListWidth = entry.contentRect.width; renderBatchList(); }
+  }).observe($('batchList'));
+  document.addEventListener('click', event => { if (!event.target.closest('.batch-more-wrap')) setBatchMenu(false); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') setBatchMenu(false); });
   $('editor').addEventListener('change', event => {
     const agent = event.target.dataset.modelAgent;
     if (!agent) return;
@@ -591,7 +649,7 @@ async function init() {
     if (b.status !== 'waiting' && !confirm('Cancel this batch? The running CLI is stopped and remaining attempts are recorded as cancelled.')) return;
     await request('/api/cancel', { batch: b.key }); toast(b.status === 'waiting' ? 'Removed from the queue.' : 'Cancelling…'); await refresh();
   });
-  $('record').onclick = guard(async () => { await request('/api/note', { text: $('note').value }); $('note').value = ''; toast('Human note recorded.'); });
+  $('record').onclick = guard(async () => { await request('/api/note', { text: $('note').value }); $('note').value = ''; toast('Note added to the running attempt.'); });
   $('copyConfig').onclick = () => { const b = latest.batches.find(x => x.key === selected); addDraft(fromConfig(b.config, `${b.name} (edit)`)); toast('Copied into a new configuration on the left.'); };
   $('analyze').onclick = guard(async () => {
     const b = latest.batches.find(x => x.key === selected);

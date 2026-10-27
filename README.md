@@ -56,7 +56,7 @@ Time and usage come from the agent session. Missing measurements stay blank, and
 
 Each attempt starts with a fresh project and conversation. Dark also gets a fresh environment using a private copy of your supplied executable and an empty package store. This setup happens before timing starts; downloading, building and installing Dark are not measured. Existing CLI settings, instructions, memory, hooks and plugins can still influence results. Results depend on your tools and settings. They do not establish which language is better overall.
 
-Results, prompts, transcripts and reports are saved under `results/` by default. Generated projects live separately in temporary workspaces; each attempt's `final-project.json` records its location. Finished batches reload after a restart. Active work and queued batches do not resume.
+Results, prompts, logs, reports and project copies are saved under `results/` by default. Finished batches reload after a restart. Active work and queued batches do not resume.
 
 ## Safety and privacy
 

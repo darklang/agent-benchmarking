@@ -49,7 +49,9 @@ Comparisons use medians for matching tasks, agents, models, languages, outcomes 
 
 The output folder contains settings, tool versions, prompts, full CLI logs and run records, plus JSON and CSV results. The runner removes known secrets and common credential formats from logs, but saved files can still contain private information. Review them before sharing.
 
-Generated projects stay in their own folders. Each attempt's `final-project.json` records where its project lives. After a batch finishes, the runner saves file fingerprints (hashes) in `frozen.json` so it can detect changes before creating a report.
+After each attempt, the runner saves the project under `runs/<attempt>/project/` in the batch's output folder. This happens after timing stops, includes partial work, and skips links and special files. `final-project.json` records its location. The code viewer and manual runs use this saved copy. Older attempts still rely on temporary folders.
+
+After a batch finishes, the runner saves file fingerprints (hashes) in `frozen.json` so it can detect changes before creating a report.
 
 Finished batches and reports reload after a restart. Active attempts and waiting batches do not resume.
 

@@ -10,9 +10,9 @@ test('manual runs use a throwaway copy, keep the project unchanged and save each
   const workspace = path.join(root, 'project'), folder = path.join(root, 'batch');
   await mkdir(workspace, { recursive: true });
   await writeFile(path.join(workspace, 'main.py'), 'print("hi")\n');
-  const batch = { folder }, run = { id: 'run-1', language: 'Python', workspace };
+  const batch = { folder }, run = { id: 'run-1', language: 'Python', workspace: path.join(root, 'removed-workspace'), savedProject: workspace };
   const first = await tryProgram(batch, run, { commandLine: 'cat; echo made > new.txt; echo oops >&2; exit 3', input: 'typed' });
-  assert.equal(first.entry.stdout, 'typed');
+  assert.equal(first.entry.stdout, 'typed\n');
   assert.equal(first.entry.stderr, 'oops\n');
   assert.equal(first.entry.exitCode, 3);
   await assert.rejects(readFile(path.join(workspace, 'new.txt')));
@@ -20,7 +20,7 @@ test('manual runs use a throwaway copy, keep the project unchanged and save each
   assert.equal(slow.entry.timedOut, true);
   assert.equal((await savedTries(batch, run)).length, 2);
   await assert.rejects(tryProgram(batch, run, { commandLine: ' ' }), /Enter a command/);
-  await assert.rejects(tryProgram(batch, { ...run, workspace: path.join(root, 'missing') }, { commandLine: 'true' }), /no longer available/);
+  await assert.rejects(tryProgram(batch, { ...run, savedProject: path.join(root, 'missing') }, { commandLine: 'true' }), /no longer available/);
 });
 
 test('manual runs cannot read your home folder, write outside their copy or see inherited secrets', { skip: process.platform !== 'darwin' }, async () => {
@@ -49,4 +49,20 @@ test('suggested commands point at the main program, not its tests', () => {
   assert.equal(suggestedCommand('Dark', ['even_odd.dark']), '"$DARK" run even_odd.dark ');
   assert.equal(suggestedCommand('TypeScript', ['package.json', 'src/index.ts']), 'npm start -- ');
   assert.equal(suggestedCommand('TypeScript', ['src/main.test.ts', 'src/main.ts']), 'node src/main.ts ');
+});
+
+test('manual input submits the final line for shell prompts and preserves multiple answers', { skip: process.platform !== 'darwin' }, async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'try-input-test-'));
+  const workspace = path.join(root, 'project');
+  await mkdir(workspace);
+  const batch = { folder: path.join(root, 'batch') }, run = { id: 'input-test', language: 'Python', workspace };
+  const first = await tryProgram(batch, run, { commandLine: 'read -r answer && printf "Answer: %s\\n" "$answer"', input: '15' });
+  assert.equal(first.entry.exitCode, 0, first.entry.stderr);
+  assert.equal(first.entry.stdout, 'Answer: 15\n');
+  const multiple = await tryProgram(batch, run, { commandLine: 'read -r first && read -r second && printf "%s/%s\\n" "$first" "$second"', input: 'hello\nworld' });
+  assert.equal(multiple.entry.stdout, 'hello/world\n');
+  const terminated = await tryProgram(batch, run, { commandLine: 'cat', input: 'ready\n' });
+  assert.equal(terminated.entry.stdout, 'ready\n');
+  const empty = await tryProgram(batch, run, { commandLine: 'cat', input: '' });
+  assert.equal(empty.entry.stdout, '');
 });

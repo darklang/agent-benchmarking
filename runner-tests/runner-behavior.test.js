@@ -57,6 +57,8 @@ else { console.log(JSON.stringify({type:'system',session_id:'fixture-thread'}));
     assert.ok(instructions.startsWith(`Build a solution for ${run.task}.\n\n`));
     assert.ok(instructions.includes(`Implementation language: ${run.language}.`));
     assert.equal(await readFile(path.join(run.workspace, 'received-prompt.txt'), 'utf8'), instructions);
+    assert.equal(await readFile(path.join(run.savedProject, 'project.txt'), 'utf8'), 'Agent chooses its own structure, with no launch manifest.');
+    assert.equal(JSON.parse(await readFile(path.join(run.artifactFolder, 'final-project.json'), 'utf8')).path, run.savedProject);
     assert.equal(run.verification, 'agent-self-test');
     assert.equal(run.instructions, instructions);
     assert.doesNotMatch(instructions, /run\.json|acceptance|stdout|BENCHMARK_SECRET_WORD|BENCHMARK_DATA_DIR/);
